@@ -15,10 +15,23 @@
           <span class="brand-text">PanHub</span>
         </NuxtLink>
         <div class="nav-actions">
-          <button class="btn-icon" type="button" @click="openSettings = true" title="设置">
+          <!-- GitHub 链接 -->
+          <a
+            href="https://github.com/wu529778790/panhub.shenzjd.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-icon github-btn"
+            aria-label="打开 GitHub 仓库"
+            title="GitHub 仓库">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+          </a>
+          <!-- 设置按钮 -->
+          <button class="btn-icon" type="button" @click="openSettings = true" aria-label="打开设置" title="设置">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3"></circle>
-              <path d="M12 1v6m0 6v6m4.22-10.22l4.24-4.24M6.34 6.34L2.1 2.1m17.8 17.8l-4.24-4.24M6.34 17.66L2.1 21.9"></path>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </button>
         </div>
@@ -42,19 +55,52 @@
     </ClientOnly>
 
     <!-- Toast 通知 -->
-    <div v-if="toast.show" class="toast" :class="toast.type">
+    <div v-if="toast.show" class="toast" :class="toast.type" role="status" aria-live="polite">
       {{ toast.message }}
     </div>
+
+    <!-- 密码门（仅在用户发起搜索时弹出） -->
+    <ClientOnly>
+      <PasswordGate
+        :show="showPasswordGate"
+        :error="auth.error.value || ''"
+        :submitting="unlockSubmitting"
+        @unlock="onUnlock" />
+    </ClientOnly>
   </div>
 </template>
 
 <script setup lang="ts">
-import SettingsDrawer from "./pages/index/SettingsDrawer.vue";
 import { ALL_PLUGIN_NAMES } from "./config/plugins";
 import channelsConfig from "~/config/channels.json";
 
 const { settings, loadSettings, saveSettings, resetToDefault } = useSettings();
+const auth = useAuth();
 const openSettings = ref(false);
+const showPasswordGate = ref(false);
+const unlockSubmitting = ref(false);
+const pendingOnUnlock = ref<(() => void) | null>(null);
+
+function requestUnlock(onSuccess?: () => void) {
+  pendingOnUnlock.value = onSuccess ?? null;
+  showPasswordGate.value = true;
+}
+
+async function onUnlock(password: string) {
+  unlockSubmitting.value = true;
+  const ok = await auth.unlock(password);
+  unlockSubmitting.value = false;
+  if (ok) {
+    showPasswordGate.value = false;
+    const cb = pendingOnUnlock.value;
+    pendingOnUnlock.value = null;
+    if (cb) {
+      nextTick(() => cb());
+    }
+  }
+}
+
+provide("requestUnlock", requestUnlock);
 
 // Toast 状态
 const toast = ref({
@@ -88,6 +134,7 @@ watch(() => settings.value, (newVal, oldVal) => {
 
 onMounted(() => {
   loadSettings();
+  auth.fetchStatus();
 });
 
 // 暴露给子组件使用
@@ -96,24 +143,26 @@ provide('showToast', showToast);
 
 <style>
 /* 全局样式重置和现代化设计系统 */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=Syne:wght@600;700;800&display=swap");
+
 :root {
-  --primary: #6366f1;
-  --primary-dark: #4f46e5;
-  --secondary: #8b5cf6;
+  --primary: #0f766e;
+  --primary-dark: #115e59;
+  --secondary: #f59e0b;
   --success: #10b981;
-  --warning: #f59e0b;
+  --warning: #d97706;
   --error: #ef4444;
 
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-glass: rgba(255, 255, 255, 0.7);
+  --bg-primary: #fffdf8;
+  --bg-secondary: #f7f3ea;
+  --bg-glass: rgba(255, 253, 248, 0.86);
 
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-tertiary: #94a3b8;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-tertiary: #9ca3af;
 
-  --border-light: #e2e8f0;
-  --border-medium: #cbd5e1;
+  --border-light: #e5dfd0;
+  --border-medium: #d4c7ab;
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -139,8 +188,10 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  font-family: "Manrope", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: radial-gradient(circle at 12% -10%, #fff3d9 0%, transparent 42%),
+    radial-gradient(circle at 90% 8%, #d9f7f3 0%, transparent 35%),
+    #fffdf8;
   color: var(--text-primary);
 
   /* iOS Safari兼容性 */
@@ -250,15 +301,15 @@ button {
 .blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.4;
+  filter: blur(48px);
+  opacity: 0.28;
   animation: blobFloat 8s ease-in-out infinite;
 }
 
 .blob-1 {
   width: 400px;
   height: 400px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
   top: -100px;
   left: -100px;
   animation-delay: 0s;
@@ -267,7 +318,7 @@ button {
 .blob-2 {
   width: 300px;
   height: 300px;
-  background: linear-gradient(135deg, #ec4899, #f43f5e);
+  background: linear-gradient(135deg, #f59e0b, #fb7185);
   bottom: -50px;
   right: -50px;
   animation-delay: 2s;
@@ -276,7 +327,7 @@ button {
 .blob-3 {
   width: 250px;
   height: 250px;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
+  background: linear-gradient(135deg, #0ea5e9, #14b8a6);
   top: 50%;
   left: 70%;
   animation-delay: 4s;
@@ -295,7 +346,7 @@ button {
 }
 
 .nav {
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 16px 24px;
   display: flex;
@@ -322,7 +373,7 @@ button {
 
 .brand-icon {
   font-size: 24px;
-  filter: drop-shadow(0 2px 4px rgba(99, 102, 241, 0.3));
+  filter: drop-shadow(0 2px 4px rgba(15, 118, 110, 0.3));
 }
 
 .brand-text {
@@ -350,7 +401,8 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    transform var(--transition-fast), box-shadow var(--transition-fast);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
@@ -369,11 +421,26 @@ button {
   stroke: currentColor;
 }
 
+/* GitHub 按钮特殊样式 */
+.github-btn {
+  color: var(--text-secondary);
+}
+
+.github-btn:hover {
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.github-btn svg {
+  stroke: none;
+  fill: currentColor;
+}
+
 /* 主内容区 */
 .main {
   flex: 1;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 24px;
   animation: fadeIn 0.5s ease;
@@ -450,40 +517,109 @@ button {
   }
 }
 
-/* 深色模式支持 */
+/* 深色模式 - Obsidian Tide 主题 */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-glass: rgba(15, 23, 42, 0.7);
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-tertiary: #64748b;
-    --border-light: #334155;
-    --border-medium: #475569;
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-glass: rgba(13, 17, 23, 0.82);
+    --text-primary: #e6edf3;
+    --text-secondary: #a1aab5;
+    --text-tertiary: #7d8794;
+    --border-light: #21262d;
+    --border-medium: #30363d;
+    --primary: #2dd4bf;
+    --primary-dark: #14b8a6;
+    --secondary: #fbbf24;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
   }
 
   body {
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    background:
+      radial-gradient(ellipse at 10% 0%, rgba(13, 148, 136, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 5%, rgba(217, 119, 6, 0.08) 0%, transparent 40%),
+      #0a0e14;
+  }
+
+  .blob {
+    opacity: 0.12;
+  }
+
+  .blob-1 {
+    background: linear-gradient(135deg, #0d9488, #2dd4bf);
+  }
+
+  .blob-2 {
+    background: linear-gradient(135deg, #d97706, #fbbf24);
+  }
+
+  .blob-3 {
+    background: linear-gradient(135deg, #0891b2, #2dd4bf);
   }
 
   .header {
-    background: rgba(15, 23, 42, 0.7);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(13, 17, 23, 0.78);
+    border-bottom: 1px solid var(--border-light);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .brand-text {
+    background: linear-gradient(135deg, #2dd4bf, #fbbf24);
+    -webkit-background-clip: text;
+    background-clip: text;
   }
 
   .btn-icon {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
   }
 
   .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--border-medium);
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .github-btn {
+    color: var(--text-tertiary);
+  }
+
+  .github-btn:hover {
+    color: var(--text-primary);
   }
 
   .toast {
     background: var(--bg-secondary);
     border-color: var(--border-light);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .toast.info {
+    color: var(--primary);
+    border-left-color: var(--primary);
+  }
+
+  .toast.success {
+    color: #34d399;
+    border-left-color: #34d399;
+  }
+
+  .toast.error {
+    color: #f87171;
+    border-left-color: #f87171;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
   }
 }
 

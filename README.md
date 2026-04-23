@@ -1,61 +1,85 @@
 # PanHub · 全网最全的网盘搜索
 
-用一个搜索框，搜遍阿里云盘、夸克、百度网盘、115、迅雷等热门网盘资源。即搜即得、聚合去重、免费开源、零广告、轻量部署。
+> 一个搜索框，搜遍全网网盘资源 —— 即搜即得、聚合去重、免费开源、零广告、轻量部署
 
-在线体验：<https://panhub.shenzjd.com>
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwu529778790%2Fpanhub.shenzjd.com&project-name=panhub&repository-name=panhub.shenzjd.com)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/wu529778790/panhub.shenzjd.com)
+[![Docker Hub](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker)](https://github.com/wu529778790/panhub.shenzjd.com/pkgs/container/panhub)
 
-> 免责声明：本项目仅用于技术学习与搜索聚合演示，不存储、不传播任何受版权保护的内容。请勿用于商业或侵权用途。
+**在线体验**：<https://panhub.shenzjd.com>
 
 ---
 
 ## ✨ 核心特性
 
-### 智能搜索优化
-- **优先级频道机制**：TG 搜索自动优先处理高优先级频道，响应速度提升 50%+
-- **批量并发控制**：支持独立配置优先频道与普通频道的并发数，最大化利用资源
-- **智能缓存系统**：LRU 淘汰 + 内存监控 + 过期清理，防止内存泄漏
+### 🔍 智能搜索
 
-### 稳定性增强
-- **统一错误处理**：所有网络请求自动重试（指数退避），失败率降低 80%
-- **超时控制**：插件和 API 请求支持可配置超时，避免无限等待
-- **优雅降级**：单个插件失败不影响整体搜索，自动跳过并记录日志
+- **多源聚合**：同时搜索 Telegram 80+ 频道 + 10+ 第三方插件
+- **优先级调度**：高优先级频道优先返回，首屏结果提速 50%+
+- **批量并发**：独立配置优先/普通频道并发数，充分利用网络带宽
+- **暂停/继续**：搜索过程可随时暂停，找到目标立即停止
+- **自动重试**：网络请求失败自动重试（指数退避策略）
+- **智能缓存**：LRU 淘汰 + 内存监控 + 过期清理
 
-### 部署与开发
-- **零成本部署**：原生支持 Cloudflare Workers、Vercel、Docker
-- **完整测试覆盖**：50+ 单元测试，核心逻辑 100% 覆盖
-- **类型安全**：全 TypeScript 编写，完整类型推断
+### 📊 豆瓣影视榜单
+
+- **四大榜单**：Top250、新片榜、口碑榜、北美票房
+- **无限滚动**：滚动到底部自动加载更多内容
+- **骨架屏加载**：流畅的视觉反馈，分类切换立即响应
+- **一键搜索**：点击任意影视名称，自动发起网盘搜索
+- **智能封面**：自动过滤UI标记图标，展示真实电影海报
+
+### 🔥 热门搜索
+
+- **实时热搜**：展示其他用户搜索词，点击即可搜索
+- **数据持久化**：JSON 文件本地存储（Vercel/CF 自动降级内存）
+- **搜索统计**：实时展示热搜榜使用次数
+
+### 🎨 用户体验
+
+- **深色模式**：完整支持深色主题，自动跟随系统偏好
+- **响应式设计**：完美适配桌面、平板、手机
+- **密码门**：可配置 `SEARCH_PASSWORD`，搜索时输入密码解锁（Cookie 30 天有效）
+- **优雅降级**：单个插件/频道失败不影响整体
+
+### 🛡️ 稳定性
+
+- **超时控制**：可配置超时，避免无限等待
+- **图片代理**：内置图片代理，解决跨域问题
+- **60+ 测试用例**：核心逻辑 >90% 覆盖率
 
 ---
 
 ## 🚀 快速开始
 
-### 一键部署到 Vercel
+### 方式一：Vercel 一键部署（推荐）
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwu529778790%2Fpanhub.shenzjd.com&project-name=panhub&repository-name=panhub.shenzjd.com)
 
-### 一键部署到 Cloudflare Workers
+### 方式二：Cloudflare Workers 一键部署
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/wu529778790/panhub.shenzjd.com)
 
-### Docker 部署
+### 方式三：Docker 部署
 
 ```bash
-# GHCR
-docker pull ghcr.io/wu529778790/panhub.shenzjd.com:latest
+# 快速启动
 docker run --name panhub -p 3000:3000 -d ghcr.io/wu529778790/panhub.shenzjd.com:latest
 
-# Docker Hub
-docker pull docker.io/wu529778790/panhub.shenzjd.com:latest
-docker run --name panhub -p 3000:3000 -d docker.io/wu529778790/panhub.shenzjd.com:latest
+# 数据持久化（推荐）
+mkdir -p /root/panhub/data
+docker run -d --name panhub -p 3000:3000 \
+  -v /root/panhub/data:/app/data \
+  ghcr.io/wu529778790/panhub.shenzjd.com:latest
 ```
 
-### 本地开发
+### 方式四：本地开发
 
 ```bash
 # 安装依赖
 pnpm install
 
-# 启动开发服务器
+# 开发服务器
 pnpm dev
 
 # 运行测试
@@ -63,201 +87,152 @@ pnpm test
 
 # 构建生产版本
 pnpm build
-pnpm start
 ```
 
 ---
 
-## 📖 使用说明
+## 📖 使用指南
 
-1) **输入关键词并回车**开始搜索。
+### 搜索流程
 
-2) **分批结果展示**：
-   - **快速结果**：优先并发查询高优先级频道（默认 4 并发）
-   - **深度结果**：继续查询剩余频道（默认 2 并发）
-   - **自动合并**：结果自动去重、按时间排序、分类型展示
+1. **输入关键词并回车**开始搜索
+2. **快速结果**：优先频道先返回（~50ms）
+3. **深度结果**：剩余频道继续加载
+4. **自动合并**：结果去重、按时间排序、分类型展示
 
-3) **右上角设置面板**可自定义：
-   - **插件管理**：启用/禁用不同来源的搜索插件
-   - **TG 频道**：配置优先频道和普通频道列表
-   - **性能参数**：
-     - 插件并发数（1-16）
-     - 插件超时时间（毫秒）
-     - 缓存开关与过期时间
+### 操作按钮
 
-4) **重置按钮**：立即取消所有进行中的请求并清空结果。
+| 按钮 | 功能 |
+|------|------|
+| **暂停/继续** | 随时控制搜索过程 |
+| **重置** | 取消所有请求，清空结果和输入框 |
+| **热搜词** | 点击直接搜索 |
 
-5) **恢复默认**：清空本地配置并刷新页面。
+### 设置面板
+
+右上角设置按钮可配置：
+
+- **插件管理**：启用/禁用第三方搜索插件
+- **TG 频道**：配置优先/普通频道列表
+- **性能参数**：并发数、超时时间、缓存时长
 
 ---
 
-## 🔧 技术架构
+## ⚙️ 环境变量
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `LOG_LEVEL` | `info` | 日志级别（debug/info/warn/error） |
+| `NITRO_PRESET` | auto-detect | 部署预设（vercel/cloudflare/docker） |
+| `PORT` | `3000` | 服务端口 |
+| `SEARCH_PASSWORD` | 空 | 非空时启用密码门，搜索时需输入正确密码（Cookie 30 天有效） |
+
+---
+
+## 🏗️ 技术架构
+
+### 前端技术栈
+
+- **框架**：Nuxt.js 4 + Vue 3
+- **样式**：原生 CSS（无框架依赖）
+- **状态管理**：Vue Composition API
+- **类型安全**：TypeScript
+
+### 后端技术栈
+
+- **运行时**：Nitro（Nuxt 内置）
+- **HTML 解析**：Cheerio
+- **HTTP 客户端**：ofetch
+- **测试框架**：Vitest
 
 ### 核心模块
 
 ```
 server/core/
-├── cache/
-│   └── memoryCache.ts      # LRU 缓存系统（支持内存监控 + 智能清理）
 ├── services/
-│   ├── searchService.ts    # 搜索服务（优先级批处理 + 并发控制）
-│   └── tg.ts               # TG 频道抓取
-├── plugins/
-│   ├── manager.ts          # 插件管理器
-│   └── base.ts             # 插件基类
+│   ├── searchService.ts    # 搜索编排器
+│   ├── tg.ts               # TG 频道抓取
+│   ├── doubanHotService.ts # 豆瓣榜单抓取
+│   └── plugins/
+│       ├── manager.ts      # 插件管理器
+│       ├── pansearch.ts    # 盘搜
+│       ├── qupansou.ts     # 去盘搜
+│       └── ...
+├── cache/
+│   └── memoryCache.ts      # LRU 缓存
 └── utils/
-    ├── fetch.ts            # 统一网络请求（重试 + 超时）
-    └── logger.ts           # 结构化日志
-```
-
-### 性能优化详情
-
-#### 1. 内存缓存 (MemoryCache)
-```typescript
-// 特性：
-- LRU 淘汰策略（最近最少使用）
-- 内存占用估算与监控
-- 过期条目自动清理
-- 性能指标统计（命中率、淘汰次数等）
-
-// 配置：
-{
-  maxSize: 1000,              // 最大条目数
-  maxMemoryBytes: 100MB,      // 最大内存占用
-  cleanupInterval: 5分钟,     // 自动清理间隔
-  memoryThreshold: 0.8,       // 内存阈值（80%触发清理）
-}
-```
-
-#### 2. TG 搜索优化
-```typescript
-// 优先级批处理：
-1. 优先频道：并发 = min(默认并发 * 2, 12)
-2. 普通频道：并发 = 默认并发
-
-// 性能提升：
-- 8 个频道（3 优先 + 5 普通）搜索时间：~350ms（优化前 8-10s）
-- 优先频道结果返回时间：~50ms
-```
-
-#### 3. 网络请求优化
-```typescript
-// fetchWithRetry 特性：
-- 自动重试（最多 3 次）
-- 指数退避延迟（1s, 2s, 4s）
-- 超时控制（默认 10s）
-- 统一日志记录
-```
-
-#### 4. 错误处理
-```typescript
-// safeExecute 模式：
-- 单个插件失败不影响整体
-- 自动记录错误日志
-- 返回空数组作为降级结果
-- 支持短关键词兜底（"电影"、"movie"、"1080p"）
+    └── fetch.ts            # 网络请求封装
 ```
 
 ---
 
-## 🧪 测试
+## 📦 支持的网盘平台
 
-本项目包含完整的单元测试套件：
+| 平台 | 图标 | 说明 |
+|------|------|------|
+| 阿里云盘 | ☁️ | 支持分享链接解析 |
+| 夸克网盘 | 🔎 | 支持分享链接解析 |
+| 百度网盘 | 🧰 | 支持分享链接解析 |
+| 115网盘 | 📦 | 支持分享链接解析 |
+| 迅雷云盘 | ⚡ | 支持分享链接解析 |
+| UC网盘 | 🧭 | 支持分享链接解析 |
+| 天翼云盘 | ☁️ | 支持分享链接解析 |
+| 123网盘 | # | 支持分享链接解析 |
+| 移动云盘 | 📱 | 支持分享链接解析 |
+
+---
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+### 开发规范
+
+- 使用 TypeScript 编写
+- 核心功能必须包含单元测试
+- 提交前运行 `pnpm test`
+- 遵循 [Conventional Commits](https://www.conventionalcommits.org/)
+
+### 测试
 
 ```bash
 # 运行所有测试
 pnpm test
 
-# 运行特定测试
-pnpm test test/unit/memoryCache.test.ts
-pnpm test test/unit/tgSearchOptimization.test.ts
+# 监听模式
+pnpm test:watch
 
-# 测试覆盖率
-# 核心模块覆盖率 > 90%
-```
-
-### 测试结果
-```
-✓ 50 tests passing
-  - fetch.test.ts: 12 tests (网络请求 + 重试)
-  - memoryCache.test.ts: 21 tests (LRU + 内存监控)
-  - pluginManager.test.ts: 10 tests (插件管理)
-  - tgSearchOptimization.test.ts: 7 tests (优先级批处理)
+# 生成覆盖率报告
+pnpm test:coverage
 ```
 
 ---
 
-## ⚙️ 配置示例
+## 🛡️ 免责声明
 
-### config/channels.json
-```json
-{
-  "priorityChannels": [
-    "频道1",
-    "频道2"
-  ],
-  "defaultChannels": [
-    "频道1",
-    "频道2",
-    "频道3",
-    "频道4"
-  ]
-}
-```
-
-### nuxt.config.ts (运行时配置)
-```typescript
-export default defineNuxtConfig({
-  runtimeConfig: {
-    priorityChannels: ['频道1', '频道2'],
-    defaultChannels: ['频道1', '频道2', '频道3', '频道4'],
-    defaultConcurrency: 10,
-    pluginTimeoutMs: 15000,
-    cacheEnabled: true,
-    cacheTtlMinutes: 30
-  }
-})
-```
-
----
-
-## 📊 性能对比
-
-| 指标 | 优化前 | 优化后 | 提升 |
-|------|--------|--------|------|
-| TG 搜索时间 (8 频道) | 8-10s | ~350ms | **95%** |
-| 内存泄漏风险 | 高 | 无 | **100%** |
-| 请求失败率 | ~15% | <2% | **87%** |
-| 单元测试覆盖 | 0% | 90%+ | **+90%** |
-
----
-
-## 🛡️ 版权与合规
-
-- PanHub 不存储任何搜索结果内容，所有链接均来自公开网络。
-- 请在遵守当地法律法规与平台使用条款的前提下使用本项目。
-- 若您是权利人并认为存在侵权线索，请先联系源站处理。
+- 本项目仅用于技术学习与搜索聚合演示
+- 不存储、不传播任何受版权保护的内容
+- 所有资源链接来自公开网络（Telegram 频道、第三方网站）
+- 请遵守当地法律法规与平台使用条款
+- 侵权问题请联系源站处理
 
 ---
 
 ## 📄 许可证
 
-本项目采用 MIT License 开源许可，商业使用请遵守许可证条款并自担合规责任。
+[MIT License](LICENSE)
 
 ---
 
-## 🤝 贡献
+## 🙏 鸣谢
 
-欢迎提交 Issue 和 Pull Request！
+- [Nuxt.js](https://nuxt.com/) - 渐进式 Vue 框架
+- [Nitro](https://nitro.unjs.io/) - Web 服务器工具包
+- [Cheerio](https://cheerio.js.org/) - 快速、灵活的 HTML 解析器
+- [Vitest](https://vitest.dev/) - 下一代测试框架
 
-### 开发规范
-- 使用 TypeScript 编写强类型代码
-- 核心功能必须包含单元测试
-- 提交前运行 `pnpm test` 确保所有测试通过
-- 使用 Conventional Commits 规范
+---
 
-### 优化方向
-- [ ] 更多网盘源插件
-- [ ] 高级搜索语法支持
-- [ ] 分布式部署支持
-- [ ] 前端性能优化
+**⭐ 如果觉得有用，请给个 Star 支持一下！**
+
+**在线体验**：<https://panhub.shenzjd.com>

@@ -5,9 +5,12 @@
 
 import { ofetch } from "ofetch";
 import type { $Fetch } from "ofetch";
-import { createLogger } from "./logger";
 
-const logger = createLogger("fetch");
+function normalizeError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error);
+  return new Error("Unknown error");
+}
 
 export interface FetchWithRetryOptions {
   /** 最大重试次数，默认 3 */
@@ -72,21 +75,12 @@ export async function fetchWithRetry<T = any>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const result = await fetcher<T>(url);
-      if (attempt > 0) {
-        logger.info(`Request succeeded after ${attempt} retries`, { url });
-      }
       return result;
     } catch (error) {
       lastError = error as Error;
 
       // 如果是最后一次尝试，抛出错误
       if (attempt === maxRetries) {
-        if (logWarnings) {
-          logger.warn(`Request failed after ${maxRetries + 1} attempts`, {
-            url,
-            error: lastError.message,
-          });
-        }
         throw lastError;
       }
 
@@ -94,14 +88,6 @@ export async function fetchWithRetry<T = any>(
       const delay = exponentialBackoff
         ? baseDelay * Math.pow(2, attempt)
         : baseDelay;
-
-      if (logWarnings) {
-        logger.warn(`Request failed, retrying... (${attempt + 1}/${maxRetries})`, {
-          url,
-          error: lastError.message,
-          retryIn: `${delay}ms`,
-        });
-      }
 
       await sleep(delay);
     }
@@ -131,14 +117,12 @@ export async function fetchWithRetry<T = any>(
 export async function safeExecute<T>(
   operation: () => Promise<T>,
   fallback: T,
-  errorLogger?: ReturnType<typeof createLogger>
+  errorLogger?: { error?: (message: string, error: Error) => void }
 ): Promise<T> {
   try {
     return await operation();
   } catch (error) {
-    if (errorLogger) {
-      errorLogger.error("Operation failed", error);
-    }
+    errorLogger?.error?.("Operation failed", normalizeError(error));
     return fallback;
   }
 }
@@ -162,7 +146,7 @@ export async function safeExecute<T>(
 export async function safeExecuteAll<T>(
   operations: Array<() => Promise<T>>,
   fallback: T,
-  logger?: ReturnType<typeof createLogger>
+  logger?: { error?: (message: string, error: Error) => void }
 ): Promise<T[]> {
   const promises = operations.map((op) => safeExecute(op, fallback, logger));
   return Promise.all(promises);

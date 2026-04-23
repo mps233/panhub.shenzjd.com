@@ -1,156 +1,125 @@
-import { MemoryCache } from '../cache/memoryCache';
+import type { IHotSearchStore, HotSearchItem, HotSearchStats } from "./hotSearchStore";
+import { JsonFileHotSearchStore } from "./jsonFileHotSearchStore";
+import { MemoryHotSearchStore } from "./memoryHotSearchStore";
 
-export interface HotSearchItem {
-  term: string;
-  score: number;
+// 模块级共享内存存储：确保同一进程内所有降级到内存的情况使用同一实例
+// 解决 service 重建时数据丢失问题（本地开发）
+let sharedMemoryStore: MemoryHotSearchStore | null = null;
+
+function getOrCreateSharedMemoryStore(): MemoryHotSearchStore {
+  if (!sharedMemoryStore) {
+    sharedMemoryStore = new MemoryHotSearchStore();
+  }
+  return sharedMemoryStore;
 }
 
-export interface HotSearchStats {
-  total: number;
-  topTerms: HotSearchItem[];
-}
-
+/**
+ * 热搜服务
+ * 根据环境自动选择 JSON 文件或内存存储
+ */
 export class HotSearchService {
-  private cache: MemoryCache<HotSearchItem[]>;
-  private readonly CACHE_KEY = 'hot-searches';
-  private readonly MAX_ENTRIES = 50;
-  private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24小时
+  private store: IHotSearchStore;
+  private storeType: "json" | "memory";
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
-    this.cache = new MemoryCache<HotSearchItem[]>({
-      maxSize: 10,
-      maxMemoryBytes: 5 * 1024 * 1024, // 5MB
-      cleanupInterval: 60 * 60 * 1000, // 1小时清理一次
-    });
+    // 尝试初始化 JSON 文件存储
+    const jsonStore = new JsonFileHotSearchStore();
+    this.store = jsonStore;
+    this.storeType = "json";
+
+    // 异步初始化，如果失败则降级到内存存储
+    this.initPromise = this.initializeWithFallback();
   }
 
-  /**
-   * 记录搜索词（增加分数）
-   */
+  private async initializeWithFallback(): Promise<void> {
+    try {
+      // 等待 JSON 文件存储初始化
+      await (this.store as JsonFileHotSearchStore)["waitForInit"]?.();
+      console.log("[HotSearchService] ✅ 使用 JSON 文件存储模式");
+    } catch {
+      console.log("[HotSearchService] ⚠️ JSON 文件初始化失败，降级到内存模式");
+      // 降级到共享内存存储（同一进程内复用，避免 service 重建导致数据丢失）
+      this.store = getOrCreateSharedMemoryStore();
+      this.storeType = "memory";
+    }
+  }
+
+  private async waitForInit(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+      this.initPromise = null;
+    }
+  }
+
   async recordSearch(term: string): Promise<void> {
-    if (!term || term.trim().length === 0) return;
-
-    // 违规词检查（这里可以集成现有的过滤系统）
-    if (await this.isForbidden(term)) {
-      console.log(`[HotSearchService] 搜索词包含违规内容: ${term}`);
-      return;
-    }
-
-    // 获取当前热搜列表
-    const current = this.cache.get(this.CACHE_KEY);
-    let searches: HotSearchItem[] = current.hit ? [...current.value] : [];
-
-    // 查找是否已存在
-    const existing = searches.find(s => s.term === term);
-    if (existing) {
-      existing.score += 1;
-    } else {
-      searches.push({ term, score: 1 });
-    }
-
-    // 按分数降序排序
-    searches.sort((a, b) => b.score - a.score);
-
-    // 限制数量并淘汰低分词
-    if (searches.length > this.MAX_ENTRIES) {
-      searches = searches.slice(0, this.MAX_ENTRIES);
-    }
-
-    // 保存到缓存
-    this.cache.set(this.CACHE_KEY, searches, this.CACHE_TTL);
-
-    console.log(`[HotSearchService] 记录搜索词: "${term}" (score: ${existing ? existing.score : 1})`);
+    await this.waitForInit();
+    const now = Date.now();
+    await this.store.recordSearch(term, now);
   }
 
-  /**
-   * 获取热搜列表
-   */
   async getHotSearches(limit: number = 30): Promise<HotSearchItem[]> {
-    const result = this.cache.get(this.CACHE_KEY);
-    if (!result.hit || !result.value) {
-      return [];
-    }
-    return result.value.slice(0, Math.min(limit, 50));
+    await this.waitForInit();
+    return this.store.getHotSearches(limit);
   }
 
-  /**
-   * 清除所有热搜记录（需要密码验证）
-   */
-  async clearHotSearches(password: string): Promise<{ success: boolean; message: string }> {
-    // 简单的密码验证（实际项目中应该使用环境变量）
-    const correctPassword = process.env.HOT_SEARCH_PASSWORD || 'admin123';
-
-    if (password !== correctPassword) {
-      return { success: false, message: '密码错误' };
-    }
-
-    this.cache.delete(this.CACHE_KEY);
-    console.log('[HotSearchService] 所有热搜记录已清除');
-    return { success: true, message: '热搜记录已清除' };
+  async clearHotSearches(): Promise<{ success: boolean; message: string }> {
+    await this.waitForInit();
+    return this.store.clearHotSearches();
   }
 
-  /**
-   * 删除指定热搜词
-   */
-  async deleteHotSearch(term: string, password: string): Promise<{ success: boolean; message: string }> {
-    const correctPassword = process.env.HOT_SEARCH_PASSWORD || 'admin123';
-
-    if (password !== correctPassword) {
-      return { success: false, message: '密码错误' };
-    }
-
-    const result = this.cache.get(this.CACHE_KEY);
-    if (!result.hit || !result.value) {
-      return { success: false, message: '没有找到热搜记录' };
-    }
-
-    const searches = result.value.filter(s => s.term !== term);
-    this.cache.set(this.CACHE_KEY, searches, this.CACHE_TTL);
-
-    console.log(`[HotSearchService] 删除热搜词: "${term}"`);
-    return { success: true, message: `热搜词 "${term}" 已删除` };
+  async deleteHotSearch(term: string): Promise<{ success: boolean; message: string }> {
+    await this.waitForInit();
+    return this.store.deleteHotSearch(term);
   }
 
-  /**
-   * 获取热搜统计信息
-   */
-  async getStats(): Promise<HotSearchStats> {
-    const result = this.cache.get(this.CACHE_KEY);
-    const topTerms = result.hit ? result.value.slice(0, 10) : [];
-
+  async getStats(): Promise<{ total: number; topTerms: HotSearchItem[]; mode: string }> {
+    await this.waitForInit();
+    const stats = await this.store.getStats();
     return {
-      total: result.hit ? result.value.length : 0,
-      topTerms,
+      ...stats,
+      mode: this.storeType,
     };
   }
 
-  /**
-   * 违规词检查（简化版，可扩展）
-   */
-  private async isForbidden(term: string): Promise<boolean> {
-    // 简单的敏感词过滤
-    const forbiddenPatterns = [
-      /政治|暴力|色情|赌博|毒品/i,
-      /fuck|shit|bitch/i,
-    ];
-
-    return forbiddenPatterns.some(pattern => pattern.test(term));
+  getDatabaseSize(): number {
+    if (this.storeType === "json" && this.store instanceof JsonFileHotSearchStore) {
+      return this.store.getFileSize();
+    }
+    return 0;
   }
 
-  /**
-   * 手动触发缓存清理（用于测试或紧急情况）
-   */
-  forceCleanup(): void {
-    this.cache.forceCleanup();
+  getStoreType(): "json" | "memory" {
+    return this.storeType;
+  }
+
+  close(): void {
+    this.store.close();
   }
 }
 
 // 单例模式
-let singleton: HotSearchService | undefined;
+const HOT_SEARCH_SERVICE_KEY = "__panhub_hot_search_service_v2__";
 
 export function getOrCreateHotSearchService(): HotSearchService {
-  if (!singleton) {
-    singleton = new HotSearchService();
+  const context = (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+  if (context?.service) {
+    return context.service;
   }
-  return singleton;
+
+  const service = new HotSearchService();
+  (globalThis as any)[HOT_SEARCH_SERVICE_KEY] = { service };
+  return service;
 }
+
+export function resetHotSearchService(): void {
+  const context = (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+  if (context?.service) {
+    context.service.close();
+  }
+  delete (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+  // 不重置 sharedMemoryStore，保持内存数据（用于测试时需单独清理）
+}
+
+// 向后兼容：导出旧的类型别名
+export type { HotSearchItem, HotSearchStats };
